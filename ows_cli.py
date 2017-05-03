@@ -1,8 +1,12 @@
+#!/usr/bin/env python
+import argcomplete
 import os, sys, argparse
 from api_caller import call_api
 from xml.etree import cElementTree
 import xmltodict, json
 from ConfigParser import ConfigParser
+from action_choices import get_ows_action_choices
+from argcomplete.completers import ChoicesCompleter
 
 
 def call(service, call_arg):
@@ -12,35 +16,47 @@ def call(service, call_arg):
     return status_code, response
 
 
-def help(extend=False):
+def help():
     conf=ConfigParser()
     conf.read('ows.cfg')
-    print '\n\t---- OWS CLI v{} ----\n\tTo get help use the -h or --help argument'.format(conf.get('app', 'version'))
-    if extend:
-        print '\n\tExpected arguments are:\
-                \n\t\tService: fcu, lbu, eim, osu...\
-                \n\t\tAction: --Action=ExpectedAction \
-                \n\t\tOptions: --OptionKey=OptionValue'
-    print ''
+
+
+    print '''
+Expected arguments are:\n
+--service  fcu | lbu | eim | osu...
+--action ExpectedAction, use tab to autocomplete if autocomplete activated.
+
+Options: #OptionKey=OptionValue'''
+    print
     sys.exit(1)
 
 
+
+
 if __name__ == '__main__':
-    if sys.argv[1] in ['-h', '--help']:
-        help(extend=True)
-    else:
-        try:
-            service = sys.argv[1]
-            arg_list = []
-            for arg in sys.argv[2:]:
-                if arg.startswith('--'):
-                    arg_list.append(arg[2:])
-            parsed_string = '&'.join(arg_list)
-            # Action=MyAction&param1=value1&param2=value2&tags.keyn=valuen&tags.keym=valuem
-            status_code, response = call(service, parsed_string)
-        except Exception as e:
-            print e
-            help()
+    choices = get_ows_action_choices()
+    parser  =  argparse.ArgumentParser() 
+    parser.add_argument('--service', required=True).completer = ChoicesCompleter(['fcu', 'lbu', 'eim', 'osu'])  
+    parser.add_argument( '--action', required=True).completer = ChoicesCompleter(choices)
+    argcomplete.autocomplete(parser)
+
+    args = parser.parse_args()
+    action =  args.action
+    service = args.service
+
+    try:
+        arg_list = []
+        for arg in sys.argv[4:]:
+            if arg.startswith('#'):
+                arg_list.append(arg[1:])
+        print arg_list
+        parsed_string = '&'.join(arg_list)
+        print parsed_string
+        # Action=MyAction&param1=value1&param2=value2&tags.keyn=valuen&tags.keym=valuem
+        status_code, response = call(service, parsed_string)
+    except Exception as e:
+        print e
+        help()
 
     print "\nCode: {}".format(status_code)
     print json.dumps(response)
